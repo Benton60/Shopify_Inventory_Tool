@@ -63,7 +63,7 @@ public class PreviewApp extends JFrame {
         JButton savePreviewBtn = new JButton("Save Preview");
         JButton discrepanciesBtn = new JButton("Discrepancies");
         JButton saveDiscrepanciesBtn = new JButton("Save Discrepancies");
-
+        JButton helpBtn = new JButton("Help");
 
         toolbar.add(shopifyBtn);
         toolbar.add(localBtn);
@@ -71,6 +71,7 @@ public class PreviewApp extends JFrame {
         toolbar.add(discrepanciesBtn);
         toolbar.addSeparator();
         toolbar.add(saveDiscrepanciesBtn);
+        toolbar.add(helpBtn);
         toolbar.add(new JLabel("   (more tools coming soon)"));
 
         add(toolbar, BorderLayout.NORTH);
@@ -104,7 +105,14 @@ public class PreviewApp extends JFrame {
         savePreviewBtn.addActionListener(e -> savePreview());
         discrepanciesBtn.addActionListener(e -> showDiscrepancies());
         saveDiscrepanciesBtn.addActionListener(e -> saveDiscrepancies());
-
+        helpBtn.addActionListener(e -> {
+            try {
+                Desktop.getDesktop().browse(new java.net.URI("https://github.com/Benton60/Shopify_Inventory_Tool/tree/master#readme"));
+            } catch (Exception ex) {
+                logError(ex);
+                JOptionPane.showMessageDialog(this, "Unable to open help page: " + ex.getMessage());
+            }
+        });
 
         setSize(1200, 600);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
