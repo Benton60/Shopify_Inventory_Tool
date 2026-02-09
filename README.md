@@ -28,10 +28,14 @@ The application runs on **Windows** and **Linux** with Java 17+.
 
 ### 1. Launch the Application
 
-Make sure you have **Java 17+** installed, then run:
+Make sure you have **Java 17+** installed, compile using:
 
 ```bash
-java -jar ShopifyInventoryTool.jar
+maven clean package
+```
+You will se two jar files. One is a FAT jar the other is a regular jar. The larger one is the FAT and therefore the standalone file to run using:
+```bash
+java -jar <Insert your jar file name>
 ```
 
 ---
