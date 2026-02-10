@@ -261,29 +261,27 @@ public class PreviewApp extends JFrame {
     // Excel (xls + xlsx)
     // =============================
     private List<String[]> readExcel(File file) throws Exception {
+        try (InputStream is = new FileInputStream(file);
+             Workbook wb = WorkbookFactory.create(is)) {
 
-        List<String[]> rows = new ArrayList<>();
+            Sheet sheet = wb.getSheetAt(0);
 
-        Workbook workbook = WorkbookFactory.create(new FileInputStream(file));
-        Sheet sheet = workbook.getSheetAt(0);
+            List<String[]> rows = new ArrayList<>();
 
-        DataFormatter formatter = new DataFormatter();
+            for (Row row : sheet) {
+                int last = row.getLastCellNum();
+                String[] data = new String[last];
 
-        for (Row row : sheet) {
+                for (int i = 0; i < last; i++) {
+                    Cell c = row.getCell(i, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
+                    data[i] = c.toString();
+                }
 
-            int last = row.getLastCellNum();
-            String[] vals = new String[last];
-
-            for (int i = 0; i < last; i++) {
-                Cell c = row.getCell(i);
-                vals[i] = c == null ? "" : formatter.formatCellValue(c);
+                rows.add(data);
             }
 
-            rows.add(vals);
+            return rows;
         }
-
-        workbook.close();
-        return rows;
     }
 
     private void showPreview() {
@@ -366,12 +364,11 @@ public class PreviewApp extends JFrame {
     private void savePreview() {
         FileState preview = files.get("preview");
 
-        if (preview == null) {
+        if (preview == null || preview.rows.isEmpty()) {
             JOptionPane.showMessageDialog(this, "No preview to save!");
             return;
         }
 
-        // Open Save File dialog
         JFileChooser chooser = new JFileChooser();
         chooser.setDialogTitle("Save Preview As");
         chooser.setSelectedFile(new File("Updated_Shopify_Export.csv"));
@@ -382,15 +379,29 @@ public class PreviewApp extends JFrame {
         File file = chooser.getSelectedFile();
 
         try (PrintWriter pw = new PrintWriter(file)) {
-            for (String[] row : preview.rows) {
-                // Escape commas in values if needed
+            // Identify Quantity column
+            int quantityCol = -1;
+            FileState shopifyState = files.get(SHOPIFY);
+            if (shopifyState != null) quantityCol = shopifyState.quantityColumn;
+
+            for (int rowIndex = 0; rowIndex < preview.rows.size(); rowIndex++) {
+                String[] row = preview.rows.get(rowIndex);
+                String[] escaped = new String[row.length];
+
                 for (int i = 0; i < row.length; i++) {
-                    if (row[i].contains(",")) {
-                        row[i] = "\"" + row[i].replace("\"", "\"\"") + "\"";
+                    String cell = row[i];
+
+                    // Only force integers for data rows, not headers
+                    if (rowIndex > 0 && i == quantityCol) {
+                        cell = forceInteger(cell);
                     }
+
+                    escaped[i] = escapeForCSV(cell);
                 }
-                pw.println(String.join(",", row));
+
+                pw.println(String.join(",", escaped));
             }
+
             JOptionPane.showMessageDialog(this, "Preview saved as: " + file.getAbsolutePath());
         } catch (Exception ex) {
             logError(ex);
@@ -443,7 +454,7 @@ public class PreviewApp extends JFrame {
         // Collect Shopify extra SKUs
         for (int i = 1; i < shopify.rows.size(); i++) {
             String sku = shopify.rows.get(i)[shopify.skuColumn];
-            if (!localMap.containsKey(sku)) {
+            if (!localMap.containsKey(sku) && !sku.trim().isEmpty()) {
                 shopifyExtra.add(shopify.rows.get(i).clone());
             }
         }
@@ -587,15 +598,31 @@ public class PreviewApp extends JFrame {
     // Writes a category title + headers + rows
     private void writeCategory(PrintWriter pw, String title, String[] headers, List<String[]> rows) {
         pw.println(title);
-        pw.println(String.join(",", headers));
+
+        // Write headers
+        String[] escapedHeaders = new String[headers.length];
+        for (int i = 0; i < headers.length; i++) {
+            escapedHeaders[i] = escapeForCSV(headers[i]);
+        }
+        pw.println(String.join(",", escapedHeaders));
+
+        // Identify Quantity column (if applicable)
+        int quantityCol = files.get(SHOPIFY) != null ? files.get(SHOPIFY).quantityColumn : -1;
+
+        // Write rows
         for (String[] row : rows) {
-            // Escape commas
+            String[] escaped = new String[row.length];
             for (int i = 0; i < row.length; i++) {
-                if (row[i].contains(",")) {
-                    row[i] = "\"" + row[i].replace("\"", "\"\"") + "\"";
+                String cell = row[i];
+
+                // Force integer only for data rows (headers already written)
+                if (i == quantityCol) {
+                    cell = forceInteger(cell);
                 }
+
+                escaped[i] = escapeForCSV(cell);
             }
-            pw.println(String.join(",", row));
+            pw.println(String.join(",", escaped));
         }
     }
 
@@ -603,7 +630,6 @@ public class PreviewApp extends JFrame {
     private void writeBlankLines(PrintWriter pw, int n) {
         for (int i = 0; i < n; i++) pw.println();
     }
-
 
     // Simple error logger
     private void logError(Exception ex) {
@@ -627,6 +653,27 @@ public class PreviewApp extends JFrame {
         }
     }
 
+    // Escape CSV fields properly for Shopify
+    private String escapeForCSV(String value) {
+        if (value == null) return "";
+        // If the value contains quotes, commas, or line breaks, wrap in quotes and double internal quotes
+        if (value.contains("\"") || value.contains(",") || value.contains("\n") || value.contains("\r")) {
+            value = value.replace("\"", "\"\"");
+            return "\"" + value + "\"";
+        }
+        return value;
+    }
+
+    private String forceInteger(String value) {
+        if (value == null || value.trim().isEmpty()) return "0";
+        try {
+            // Round down any decimals and convert to plain integer string
+            int intVal = (int) Math.floor(Double.parseDouble(value.trim()));
+            return String.valueOf(intVal);
+        } catch (NumberFormatException e) {
+            return "0"; // fallback for non-numeric values
+        }
+    }
     // =============================
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> new PreviewApp().setVisible(true));
