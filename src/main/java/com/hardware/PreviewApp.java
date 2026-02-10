@@ -126,9 +126,7 @@ public class PreviewApp extends JFrame {
     // =============================
     private void loadOrShow(String key) {
 
-        currentKey = key;
-
-        if (!files.containsKey(key)) {
+        if (!files.containsKey(key) || key.equals(currentKey)) {
             JFileChooser chooser = new JFileChooser();
             if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return;
 
@@ -154,6 +152,7 @@ public class PreviewApp extends JFrame {
             }
         }
 
+        currentKey = key;
         FileState state = files.get(key);
         if (state == null) return;
 
